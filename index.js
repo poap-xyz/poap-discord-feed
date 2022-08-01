@@ -33,6 +33,8 @@ const options = {
     onTimeout: false,
   },
 };
+const axiosRetry = require('axios-retry');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const bot = new Discord.Client();
 
@@ -53,6 +55,18 @@ const start = () => {
     new Web3.providers.WebsocketProvider(MAINNET_WS_PROVIDER, options)
   );
 
+  axiosRetry(axios, {
+        retries: 3, // number of retries
+        retryDelay: (retryCount) => {
+            console.log(`Retry attempt: ${retryCount}`);
+            return retryCount * 4000; // time interval between retries
+        },
+        retryCondition: (error) => {
+            // if retry condition is not specified, by default idempotent requests are retried
+            return error.response.status >= 400;
+        },
+    });
+
   subscribeToTransfer(web3xDai, POAP_XDAI_CONTRACT, XDAI_NETWORK);
   subscribeToTransfer(web3Mainnet, POAP_XDAI_CONTRACT, MAINNET_NETWORK);
 };
@@ -65,39 +79,35 @@ const subscribeToTransfer = (web3, address, network) => {
     .Transfer(null)
     .on("data", async (result) => {
       // console.log(result)
-      const tokenId = result.returnValues.tokenId;
-      const fromAddress = result.returnValues.from;
-      const toAddress = result.returnValues.to;
-      const txHash = result.transactionHash;
+        try {
+            const tokenId = result.returnValues.tokenId;
+            const fromAddress = result.returnValues.from;
+            const toAddress = result.returnValues.to;
+            const txHash = result.transactionHash;
 
-      console.log(`TokenId: ${tokenId}, to: ${toAddress}, tx: ${txHash}`);
+            console.log(`TokenId: ${tokenId}, to: ${toAddress}, tx: ${txHash}`);
+            const action = fromAddress === ZEROX ? MINT_ACTION : toAddress === ZEROX ? BURN_ACTION : TRANSFER_ACTION;
+            const tokenInfo = await getTokenById(tokenId);
 
-      const tokenInfo = await getTokenById(tokenId);
 
-      // mint
-      // transfer
-      // burn
-      const action =
-        fromAddress == ZEROX
-          ? MINT_ACTION
-          : toAddress == ZEROX
-          ? BURN_ACTION
-          : TRANSFER_ACTION;
-
-      if (tokenInfo && tokenInfo.image_url && lastHash != txHash) {
-        logPoap(
-          tokenInfo.image_url,
-          action,
-          tokenId,
-          tokenInfo.id,
-          tokenInfo.name,
-          toAddress,
-          tokenInfo.poapPower,
-          tokenInfo.ens,
-          network
-        );
-        lastHash = txHash
-      }
+            if (tokenInfo && tokenInfo.image_url && lastHash !== txHash) {
+                await sendPoapEmbeddedMessage(
+                    tokenInfo.image_url,
+                    action,
+                    tokenId,
+                    tokenInfo.id,
+                    tokenInfo.name,
+                    toAddress,
+                    tokenInfo.poapPower,
+                    tokenInfo.ens,
+                    network
+                );
+                lastHash = txHash;
+            }
+        } catch (e){
+            console.error("ERROR SENDING DISCORD MESSAGE");
+            console.error(e);
+        }
     })
     .on("connected", (subscriptionId) => {
       console.log(`Connected to ${network} - ${subscriptionId} `);
@@ -106,46 +116,45 @@ const subscribeToTransfer = (web3, address, network) => {
       console.log(`Changed to ${network} - ${log} `);
     })
     .on("error", (error) => {
-      console.log(`Error to ${network} - ${error} `);
+      console.error(`Error to ${network} - ${error} `);
     });
 };
 
 const getTokenById = async (tokenId) => {
-  const tokenInfoCompleted = await axios
-    .get(`https://api.poap.xyz/token/${tokenId}`)
-    .then(async (response) => {
-      // {"event":{"id":1710,"fancy_id":"avastars-birthday-party-winner-poap-2021","name":"Avastars Birthday Party WINNER POAP","event_url":"https://avastars.io/","image_url":"https://storage.googleapis.com/poapmedia/avastars-birthday-party-winner-poap-2021-logo-1618590848145.png","country":"","city":"","description":"Poap for winners of giveaways","year":2021,"start_date":"20-Apr-2021","end_date":"20-Apr-2021"},"tokenId":"168570","owner":"0x4af37e995eb4fadc77a5ee355ae0a80edc5d1f04","layer":"Layer2"}
-      const { id, name, image_url } = response.data.event;
-      const address = response.data.owner;
-      const tokenWithEns = await axios
-        .get(`https://api.poap.xyz/actions/ens_lookup/${address}`)
-        .then(async (ensResponse) => {
-          //ens is null if it is not valid
-          const { ens } = ensResponse.data;
-          const tokenInfoWithPower = await axios
-            .get(`https://api.poap.xyz/actions/scan/${address}`)
-            .then(async (scanResponse) => {
-              const poapPower = scanResponse.data.length;
-              return {
-                id,
-                name,
-                address,
-                image_url,
-                poapPower,
-                ens,
-              };
-            })
-            .catch((e) => console.log(e));
-          return tokenInfoWithPower;
-        })
-        .catch((e) => console.log(e));
-      return tokenWithEns;
-    })
-    .catch((e) => console.log(e));
-  return tokenInfoCompleted;
-};
+    let event, ens, address, poapPower = undefined;
+    try{
+        await sleep(5000);
+        const tokenData = await axios.get(`https://api.poap.xyz/token/${tokenId}`);
+        event = tokenData.data.event;
+        address = tokenData.data?.owner;
 
-const logPoap = async (
+        const addressPoaps = await axios.get(`https://api.poap.xyz/actions/scan/${address}`);
+        poapPower = (addressPoaps.data?.length) > 0 ? addressPoaps.data.length : 0;
+
+        const ensLookup = await axios.get(`https://api.poap.xyz/actions/ens_lookup/${address}`);
+        ens = ensLookup.data?.ens;
+    } catch (e) {
+        console.error("ERROR FETCHING API:")
+        console.error(e);
+    }
+
+    if(!(event && event.id && event.name && event.image_url)){
+        return undefined;
+    }
+    poapPower = (poapPower !== undefined)? poapPower : 0;
+
+    const { id, name, image_url } = event;
+    return {
+        id,
+        name,
+        address,
+        image_url,
+        poapPower,
+        ens,
+    };
+}
+
+const sendPoapEmbeddedMessage = async (
   imageUrl,
   action,
   tokenId,
