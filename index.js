@@ -126,13 +126,13 @@ const getTokenById = async (tokenId) => {
         await sleep(5000);
         const tokenData = await axios.get(`https://api.poap.xyz/token/${tokenId}`);
         event = tokenData.data.event;
-        address = tokenData.data?.owner;
+        address = tokenData.data.owner;
 
         const addressPoaps = await axios.get(`https://api.poap.xyz/actions/scan/${address}`);
-        poapPower = (addressPoaps.data?.length) > 0 ? addressPoaps.data.length : 0;
+        poapPower = (addressPoaps.data.length) > 0 ? addressPoaps.data.length : 0;
 
         const ensLookup = await axios.get(`https://api.poap.xyz/actions/ens_lookup/${address}`);
-        ens = ensLookup.data?.ens;
+        ens = ensLookup.data.ens;
     } catch (e) {
         console.error("ERROR FETCHING API:")
         console.error(e);
@@ -193,7 +193,7 @@ const sendPoapEmbeddedMessage = async (
       `https://app.poap.xyz/scan/${address}/?utm_share=discordfeed`
     )
     .setThumbnail(imageUrl);
-  channel.send(embed);
+  //channel.send(embed);
 };
 
 const emoji = (poapPower) => {
