@@ -174,7 +174,7 @@ const sendPoapEmbeddedMessage = async (
   tokenId,
   eventId,
   eventName,
-  recipientAddress,
+  address,
   poapPower,
   ens,
   network
@@ -191,9 +191,9 @@ const sendPoapEmbeddedMessage = async (
     .setURL(`https://poap.gallery/event/${eventId}/?utm_share=discordfeed`)
     .setTimestamp()
     .setAuthor(
-      ens ? ens : recipientAddress.toLowerCase(),
+      ens ? ens : address.toLowerCase(),
       ``,
-      `https://app.poap.xyz/scan/${recipientAddress}/?utm_share=discordfeed`
+      `https://app.poap.xyz/scan/${address}/?utm_share=discordfeed`
     )
     .setThumbnail(imageUrl);
 
