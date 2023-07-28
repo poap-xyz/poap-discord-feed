@@ -1,5 +1,6 @@
 require("dotenv").config();
 const API_KEY = process.env.POAP_API_KEY;
+const DISCORD_CHANNELS = JSON.parse(process.env.DISCORD_CHANNELS_NAMES);
 
 //set the enviornment variables in a .env file
 const {
@@ -169,44 +170,66 @@ const getTokenById = async (tokenId) => {
 
 const sendPoapEmbeddedMessage = async (
   imageUrl,
-  action,
+  actionType,
   tokenId,
   eventId,
   eventName,
-  address,
+  recipientAddress,
   poapPower,
   ens,
   network
 ) => {
-  const channel = bot.channels.cache.find(
-    (ch) => ch.name === DISCORD_CHANNEL_NAME
-  );
-  if (!channel) return;
-  const embed = new Discord.MessageEmbed() // Ver 12.2.0 of Discord.js
-    .setTitle(`${action}: ${eventName} `)
-    .setColor(network == MAINNET_NETWORK ? "#5762cf" : "#48A9A9")
-    // removed, maybe we can show mainnet etherscan link
-    // .setDescription(
-    // 	`POAP Power: ${poapPower} ${emoji(poapPower)} | Token ID# ${tokenId} | Event ID#: ${eventId}`
-    // )
+  // Create the embedded message using the Discord MessageEmbed API
+  const messageEmbed = new Discord.MessageEmbed()
+    .setTitle(`${actionType}: ${eventName} `)
+    .setColor(network === MAINNET_NETWORK ? "#5762cf" : "#48A9A9")
     .addFields(
-      {
-        name: "POAP Power",
-        value: `${emoji(poapPower)}  ${poapPower}`,
-        inline: true,
-      },
+      { name: "POAP Power", value: `${emoji(poapPower)}  ${poapPower}`, inline: true },
       { name: "Token ID", value: `#${tokenId}`, inline: true },
       { name: "Event ID", value: `#${eventId}`, inline: true }
     )
-	.setURL(`https://poap.gallery/event/${eventId}/?utm_share=discordfeed`)
+    .setURL(`https://poap.gallery/event/${eventId}/?utm_share=discordfeed`)
     .setTimestamp()
     .setAuthor(
-      ens ? ens : address.toLowerCase(),
+      ens ? ens : recipientAddress.toLowerCase(),
       ``,
-      `https://app.poap.xyz/scan/${address}/?utm_share=discordfeed`
+      `https://app.poap.xyz/scan/${recipientAddress}/?utm_share=discordfeed`
     )
     .setThumbnail(imageUrl);
-  channel.send(embed);
+
+  // Call the broadcastMessage function to send the message to all relevant channels
+  broadcastMessage(actionType, messageEmbed);
+};
+
+const broadcastMessage = async (actionType, messageEmbed) => {
+  // Iterate through all the channels
+  DISCORD_CHANNELS.forEach((channelConfig) => {
+    // Check if specific actions are defined for this channel
+    const hasDefinedActions = Array.isArray(channelConfig.actions) && channelConfig.actions.length;
+    const uppercaseActions = channelConfig.actions.map((action) => action.toUpperCase());
+    // If the channel has defined actions and the current action is not one of them, we skip this channel
+    if (hasDefinedActions && !uppercaseActions.includes(actionType.toUpperCase())) {
+      return;
+    }
+
+    // Send message to the specific channel
+    sendMessageToChannel(channelConfig, messageEmbed);
+  });
+};
+
+const sendMessageToChannel = async (channelConfig, messageEmbed) => {
+  // Find the corresponding Discord channel by name
+  const discordChannel = bot.channels.cache.find(
+    (channel) => channel.name === channelConfig.name
+  );
+
+  // If the channel does not exist, we return
+  if (!discordChannel) return;
+  
+  console.log("Sending message to channel: " + channelConfig.name);
+  console.log(messageEmbed);
+  // Send the message to the channel
+  //discordChannel.send(messageEmbed);
 };
 
 const emoji = (poapPower) => {
