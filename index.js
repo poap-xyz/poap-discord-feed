@@ -1,4 +1,5 @@
 require("dotenv").config();
+const API_KEY = process.env.POAP_API_KEY;
 
 //set the enviornment variables in a .env file
 const {
@@ -56,10 +57,10 @@ const start = () => {
   );
 
   axiosRetry(axios, {
-        retries: 3, // number of retries
+        retries: 6, // number of retries
         retryDelay: (retryCount) => {
             console.log(`Retry attempt: ${retryCount}`);
-            return retryCount * 4000; // time interval between retries
+            return retryCount * 5000; // time interval between retries
         },
         retryCondition: (error) => {
             // if retry condition is not specified, by default idempotent requests are retried
@@ -124,14 +125,26 @@ const getTokenById = async (tokenId) => {
     let event, ens, address, poapPower = undefined;
     try{
         await sleep(5000);
-        const tokenData = await axios.get(`https://api.poap.xyz/token/${tokenId}`);
+        const tokenData = await axios.get(`https://api.poap.tech/token/${tokenId}`, {
+  headers: {
+    'x-api-key': API_KEY,
+  }
+});
         event = tokenData.data.event;
         address = tokenData.data.owner;
 
-        const addressPoaps = await axios.get(`https://api.poap.xyz/actions/scan/${address}`);
+        const addressPoaps = await axios.get(`https://api.poap.tech/actions/scan/${address}`, {
+  headers: {
+    'x-api-key': API_KEY,
+  }
+});
         poapPower = (addressPoaps.data.length) > 0 ? addressPoaps.data.length : 0;
 
-        const ensLookup = await axios.get(`https://api.poap.xyz/actions/ens_lookup/${address}`);
+        const ensLookup = await axios.get(`https://api.poap.tech/actions/ens_lookup/${address}`, {
+  headers: {
+    'x-api-key': API_KEY,
+  }
+});
         ens = ensLookup.data.ens;
     } catch (e) {
         console.error("ERROR FETCHING API:")
@@ -193,7 +206,7 @@ const sendPoapEmbeddedMessage = async (
       `https://app.poap.xyz/scan/${address}/?utm_share=discordfeed`
     )
     .setThumbnail(imageUrl);
-  //channel.send(embed);
+  channel.send(embed);
 };
 
 const emoji = (poapPower) => {
@@ -209,3 +222,4 @@ const emoji = (poapPower) => {
 };
 
 start();
+
