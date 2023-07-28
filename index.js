@@ -206,7 +206,7 @@ const broadcastMessage = async (actionType, messageEmbed) => {
   DISCORD_CHANNELS.forEach((channelConfig) => {
     // Check if specific actions are defined for this channel
     const hasDefinedActions = Array.isArray(channelConfig.actions) && channelConfig.actions.length;
-    const uppercaseActions = channelConfig.actions.map((action) => action.toUpperCase());
+    const uppercaseActions = (Array.isArray(channelConfig.actions)? channelConfig.actions : []).map((action) => action.toUpperCase());
     // If the channel has defined actions and the current action is not one of them, we skip this channel
     if (hasDefinedActions && !uppercaseActions.includes(actionType.toUpperCase())) {
       return;
@@ -226,10 +226,10 @@ const sendMessageToChannel = async (channelConfig, messageEmbed) => {
   // If the channel does not exist, we return
   if (!discordChannel) return;
   
-  console.log("Sending message to channel: " + channelConfig.name);
-  console.log(messageEmbed);
+  //console.log("Sending message to channel: " + channelConfig.name);
+  //console.log(messageEmbed);
   // Send the message to the channel
-  //discordChannel.send(messageEmbed);
+  discordChannel.send(messageEmbed);
 };
 
 const emoji = (poapPower) => {
