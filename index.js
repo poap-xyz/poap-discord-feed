@@ -134,7 +134,7 @@ const subscribeToTransfer = (web3, address, network) => {
 
 const getTokenById = async (tokenId) => {
     let event, ens, address, poapPower = undefined;
-    try{
+    try {
         await sleep(5000);
         const tokenData = await axios.get(`https://api.poap.tech/token/${tokenId}`, {
             headers: {
@@ -151,12 +151,13 @@ const getTokenById = async (tokenId) => {
         });
         poapPower = (addressPoaps.data.length) > 0 ? addressPoaps.data.length : 0;
 
-        const ensLookup = await axios.get(`https://api.poap.tech/actions/ens_lookup/${address}`, {
-            headers: {
-                'x-api-key': API_KEY,
-            }
-        });
-        ens = ensLookup.data.ens;
+        try {
+            const profileData = await axios.get(`https://profiles.poap.tech/profile/${address}`);
+            ens = profileData.data.ens;
+        } catch (ensError) {
+            console.warn(`Could not fetch ENS for address ${address}:`, ensError.message);
+            ens = undefined;
+        }
     } catch (e) {
         console.error("ERROR FETCHING API:")
         console.error(e);
@@ -200,8 +201,8 @@ const sendPoapSlackMessage = async (
     try {
         await axios.post("https://hooks.slack.com/triggers/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", data);
     } catch (e) {
-       console.log("Error while trying to send slack message");
-       console.error(e);
+        console.log("Error while trying to send slack message");
+        console.error(e);
     }
 };
 
